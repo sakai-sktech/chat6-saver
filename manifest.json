@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Chat6 Saver",
+  "version": "1.0",
+  "description": "現在のタブからtenbinAIのブロックを抜き取り、TXT に保存します。",
+  "permissions": ["activeTab", "scripting", "downloads", "notifications"],
+  "action": {
+    "default_title": "Save Chat6"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {
+    "16":  "icon16.png",
+    "48":  "icon48.png",
+    "128": "icon128.png"
+  }
+}
+
