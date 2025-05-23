@@ -69,7 +69,7 @@ function makeFilename(ext = '.md') {
   );
 }
 function makeDataUrl(text) {
-  return "data:text/plain;charset=utf-8," + encodeURIComponent(text);
+  return "data:text/markdown;charset=utf-8," + encodeURIComponent(text);
 }
 function notify(message) {
   chrome.notifications.create({
