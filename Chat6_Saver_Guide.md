@@ -1,13 +1,3 @@
-To rename the file Chat6_Saver_Guide.md to Chat6_Saver_Guide_JP.md, translate its contents to English, and save it, you should:
-
-1. Rename the file in your repo from Chat6_Saver_Guide.md to Chat6_Saver_Guide_JP.md.
-2. Translate the contents to English.
-3. Commit and push the changes.
-
-Below is the English translation. After reviewing it, you can replace the contents of Chat6_Saver_Guide_JP.md with this translation.
-
----
-
 # Chat6 Saver ― Chrome / Edge Extension Guide  
 *“The complete record and best practices for automating ‘manual copy-paste’ into a single click”*
 
@@ -133,8 +123,3 @@ Bulk innerText ensures nothing is missed; individual extraction is easier to for
 - [x] Bulk innerText extraction
 - [x] Left/right click functionality
 
----
-
-To save, create a new file named Chat6_Saver_Guide_JP.md in the repository sakai-sktech/tenbinai-chat-exporter with the above content.
-
-Would you like instructions on how to perform the rename, translation, and commit steps using GitHub or the command line? Or would you like me to prepare a commit message for you?
