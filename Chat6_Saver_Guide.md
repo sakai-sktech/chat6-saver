@@ -1,22 +1,32 @@
-# Chat6 Saver ― Chrome / Edge 拡張機能ガイド  
-*「“手作業コピペ” を１クリック自動化するまでの全記録とベストプラクティス」*
+To rename the file Chat6_Saver_Guide.md to Chat6_Saver_Guide_JP.md, translate its contents to English, and save it, you should:
+
+1. Rename the file in your repo from Chat6_Saver_Guide.md to Chat6_Saver_Guide_JP.md.
+2. Translate the contents to English.
+3. Commit and push the changes.
+
+Below is the English translation. After reviewing it, you can replace the contents of Chat6_Saver_Guide_JP.md with this translation.
 
 ---
 
-## 0. ゴールとコンセプト
-
-| 機能 | 目的 | 実装ポイント |
-|------|------|--------------|
-| **① Raw HTML 保存**<br>右クリック ≫ *Chat6 HTML を保存* | サイト仕様が変わった時の再解析用バックアップ | data:URL で `.txt` 保存（`text/plain`） |
-| **② Markdown 変換保存**<br>左クリック（デフォルト） | 人間がすぐ読めるレポートを自動生成 | DOM を走査して **質問 + 6 モデル回答** を Markdown 組み立て → `text/markdown` で `.md` 保存 |
-
-> **設計哲学**  
-> *生データを残す* と *加工済みをすぐ使う* をワンパッケージに。  
-> どちらも **Service Worker １本** で完結させ、UI はアイコン左/右クリックだけ。
+# Chat6 Saver ― Chrome / Edge Extension Guide  
+*“The complete record and best practices for automating ‘manual copy-paste’ into a single click”*
 
 ---
 
-## 1. プロジェクト構成
+## 0. Goal and Concept
+
+| Feature | Purpose | Implementation Points |
+|---------|---------|----------------------|
+| **① Raw HTML Save**<br>Right-click ≫ *Save Chat6 HTML* | Backup for re-parsing if the site specification changes | Save as `.txt` via data:URL (`text/plain`) |
+| **② Markdown Conversion Save**<br>Left-click (default) | Automatically generate a human-readable report | Traverse the DOM and assemble **Question + 6 Model Answers** into Markdown |
+
+> **Design Philosophy**  
+> *Keep raw data* and *use ready-made processed data* in one package.  
+> Both are handled by a **single Service Worker**, with UI as simply left/right icon clicks.
+
+---
+
+## 1. Project Structure
 
 ```
 chat6-saver/
@@ -26,7 +36,7 @@ chat6-saver/
 └─ README.md
 ```
 
-### 1.1 manifest.json（要点だけ抜粋）
+### 1.1 manifest.json (Key Points Extracted)
 
 ```jsonc
 {
@@ -52,23 +62,23 @@ chat6-saver/
 }
 ```
 
-| よく詰まる所 | なぜ必要？ |
-|--------------|-----------|
-| `"action"` ブロック | 無いと `chrome.action` が `undefined` になる |
-| `"downloads"` 権限 | `chrome.downloads.download()` が未定義化 |
-| `"host_permissions"` or `"activeTab"` | DOM へアクセスする権限 |
-| `text/markdown` MIME | `.md` を維持できる |
+| Common Pitfall | Why Needed? |
+|----------------|-------------|
+| `"action"` block | Without it, `chrome.action` is `undefined` |
+| `"downloads"` permission | `chrome.downloads.download()` becomes undefined |
+| `"host_permissions"` or `"activeTab"` | Permission to access DOM |
+| `text/markdown` MIME | To preserve `.md` files |
 
 ---
 
-## 2. background.js ― 抜粋
+## 2. background.js ― Excerpt
 
 ```js
 chrome.action.onClicked.addListener(tab => saveMarkdown(tab));
 chrome.runtime.onInstalled.addListener(() =>
   chrome.contextMenus.create({
     id: "save-raw-html",
-    title: "Chat6 HTML を保存",
+    title: "Save Chat6 HTML",
     contexts: ["action"]
   })
 );
@@ -77,48 +87,54 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 ```
 
-※ 以降フルコードは本文参照。
+※ For the full code, see the main text.
 
 ---
 
-## 3. DOM パース設計 ― ベストプラクティス
+## 3. DOM Parsing Design ― Best Practices
 
-### 3.1 壊れにくいセレクタ
+### 3.1 Robust Selectors
 
-| コツ | 例 |
-|------|----|
-| 機能名クラスを見る | `[class*="p-WorkspaceGridBox-6"]` |
-| 階層は浅く | `main … .p-WorkspaceChat` |
-| 動的 ID を無視 | `div.jsx-*` は読まない |
-| querySelectorAll | 6 ブロックを配列取得 |
-| null チェック | 改修でも落とさない |
+| Tips | Example |
+|------|---------|
+| Look for feature name classes | `[class*="p-WorkspaceGridBox-6"]` |
+| Keep hierarchy shallow | `main … .p-WorkspaceChat` |
+| Ignore dynamic IDs | Don’t read `div.jsx-*` |
+| Use querySelectorAll | Get 6 blocks as an array |
+| Null checks | Avoid failures after updates |
 
-### 3.2 innerText 一括 vs 個別
+### 3.2 innerText: Bulk vs Individual
 
-innerText 一括は漏れなし、個別は整形しやすいが抜けやすい。
-
----
-
-## 4. MV3 ハマりポイント
-
-| 症状 | 原因 | 解決 |
-|------|------|------|
-| Cannot access contents | 権限不足 | host_permissions |
-| onClicked undefined | action ブロック不足 | manifest 修正 |
-| .md が .txt | text/plain MIME | text/markdown |
+Bulk innerText ensures nothing is missed; individual extraction is easier to format but may miss content.
 
 ---
 
-## 5. 今後の拡張アイデア
-* JSON モード
-* クリップボードコピー
-* オプション画面
-* ダッシュボード解析
+## 4. MV3 Pitfalls
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| Cannot access contents | Lack of permissions | host_permissions |
+| onClicked undefined | Missing action block | Fix manifest |
+| .md is saved as .txt | text/plain MIME | Use text/markdown |
 
 ---
 
-## 6. まとめチェックリスト
-- [x] manifest 修正
-- [x] text/markdown で保存
-- [x] innerText 一括取得
-- [x] 左右クリック機能
+## 5. Future Expansion Ideas
+* JSON mode
+* Clipboard copy
+* Options screen
+* Dashboard analytics
+
+---
+
+## 6. Final Checklist
+- [x] Fixed manifest
+- [x] Save as text/markdown
+- [x] Bulk innerText extraction
+- [x] Left/right click functionality
+
+---
+
+To save, create a new file named Chat6_Saver_Guide_JP.md in the repository sakai-sktech/tenbinai-chat-exporter with the above content.
+
+Would you like instructions on how to perform the rename, translation, and commit steps using GitHub or the command line? Or would you like me to prepare a commit message for you?
