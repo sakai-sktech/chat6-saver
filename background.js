@@ -1,9 +1,20 @@
 /* background.js – Manifest v3 Service-Worker */
 
+//////////////////// 0. ヘルパー関数 ////////////////////
+async function executeScriptOnTab(tabId, func) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: func,
+  });
+  return results[0]?.result;
+}
+
+const CONTEXT_MENU_ID = "save-raw-html";
+
 //////////////////// 1. インストール時にコンテキストメニュー登録 ////////////////////
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: "save-raw-html",
+    id: CONTEXT_MENU_ID,
     title: "Chat6 HTML を保存",
     contexts: ["action"]          // 拡張アイコンを右クリックした時だけ
   });
@@ -11,76 +22,96 @@ chrome.runtime.onInstalled.addListener(() => {
 
 //////////////////// 2. 左クリック＝Markdown保存 ////////////////////
 chrome.action.onClicked.addListener(async (tab) => {
-  const markdown = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: collectAsMarkdown       // ★下で定義
-  }).then(r => r[0]?.result);
+  try {
+    const markdown = await executeScriptOnTab(tab.id, collectAsMarkdown);
 
-  if (!markdown) return notify("チャット内容が見つかりませんでした ❌");
+    if (!markdown) {
+      return notify("チャット内容が見つかりませんでした ❌");
+    }
 
-  await chrome.downloads.download({
-    url: makeDataUrl(markdown),
-    filename: makeFilename(".md"),
-    saveAs: false
-  });
-  notify("Chat6 (Markdown) を保存しました ✔️");
+    await chrome.downloads.download({
+      url: makeDataUrl(markdown),
+      filename: makeFilename(".md"),
+      saveAs: false
+    });
+    notify("Chat6 (Markdown) を保存しました ✔️");
+  } catch (e) {
+    console.error("Markdown保存中にエラーが発生しました:", e);
+    notify("エラーが発生しました ❌");
+  }
 });
 
 //////////////////// 3. 右クリック＝生 HTML 保存 ////////////////////
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId !== "save-raw-html") return;
+  if (info.menuItemId !== CONTEXT_MENU_ID) return;
 
-  const html = await chrome.scripting.executeScript({
-    target: { tabId: tab.id },
-    func: () => (
-      document.querySelector('main [class*="p-WorkspaceGridBox-6"]')
-      ?.outerHTML || null          // ブロックごと抜き取り
-    )
-  }).then(r => r[0]?.result);
+  try {
+    const getRawHtml = () => {
+      // セレクタを func スコープ内で定義
+      const mainContainerSelector = 'main [class*="p-WorkspaceGridBox-6"]';
+      return document.querySelector(mainContainerSelector)?.outerHTML || null;
+    };
+    const html = await executeScriptOnTab(tab.id, getRawHtml);
 
-  if (!html) return notify("対象 DIV が見つかりませんでした ❌");
+    if (!html) {
+      return notify("対象 DIV が見つかりませんでした ❌");
+    }
 
-  await chrome.downloads.download({
-    url: makeDataUrl(html, /*markdown=*/false),
-    filename: makeFilename(".txt"),
-    saveAs: false
-  });
-  notify("Chat6 (HTML) を保存しました ✔️");
+    await chrome.downloads.download({
+      url: makeDataUrl(html, /*markdown=*/false),
+      filename: makeFilename(".txt"),
+      saveAs: false
+    });
+    notify("Chat6 (HTML) を保存しました ✔️");
+  } catch (e) {
+    console.error("HTML保存中にエラーが発生しました:", e);
+    notify("エラーが発生しました ❌");
+  }
 });
 
 //////////////////// 4. ページ側で実行する関数（Markdown生成） ////////////////////
 function collectAsMarkdown() {
-  const grid = document.querySelector('main [class*="p-WorkspaceGridBox-6"]');
+  // セレクタをオブジェクトとして一箇所にまとめる
+  const SELECTORS = {
+    mainContainer: 'main [class*="p-WorkspaceGridBox-6"]',
+    chatBlock: '[class*="p-WorkspaceChat"]',
+    userQuestionBubble: '.p-WorkspaceMessageBubbleUser__inner',
+    modelName: '.p-WorkspaceChatTitle p, .p-WorkspaceChatInformationInner p', // 複数の候補をカンマで繋ぐ
+    assistantAnswerBubble: '.p-WorkspaceMessageBubbleAssistant__inner'
+  };
+
+  const grid = document.querySelector(SELECTORS.mainContainer);
   if (!grid) return null;
 
   // すべてのチャットブロックを取得
-  const chats = [...grid.querySelectorAll('[class*="p-WorkspaceChat"]')];
+  const chats = [...grid.querySelectorAll(SELECTORS.chatBlock)];
   if (!chats.length) return null;
 
   let md = "";
 
   // 1) 最初のユーザーバブル → 質問
-  const firstUserBubble = chats[0]
-    .querySelector('.p-WorkspaceMessageBubbleUser__inner');
+  const firstUserBubble = chats[0].querySelector(SELECTORS.userQuestionBubble);
   md += `# 質問：\n\n${firstUserBubble?.innerText.trim() || ""}\n\n# 回答：\n`;
 
   // 2) 以降のチャットをループ
-  for (const chat of chats) {
-    // モデル名は必須。無ければスキップ
-    const model =
-      chat.querySelector('.p-WorkspaceChatTitle p')?.innerText.trim() ||
-      chat.querySelector('.p-WorkspaceChatInformationInner p')?.innerText.trim();
-    if (!model) continue;
+  const answers = chats
+    .map(chat => {
+      const model = chat.querySelector(SELECTORS.modelName)?.innerText.trim();
+      const answer = chat.querySelector(SELECTORS.assistantAnswerBubble)?.innerText.trim();
+      // モデル名と回答が両方なければ無効なブロックとみなす
+      return (model && answer) ? { model, answer } : null;
+    })
+    .filter(Boolean); // null を除去
 
-    // アシスタント回答ブロック全文を innerText で取得
-    const assistantInner = chat.querySelector('.p-WorkspaceMessageBubbleAssistant__inner');
-    if (!assistantInner) continue;
-    const answer = assistantInner.innerText.trim();
-    if (!answer) continue;
-
-    md += `\n## ${model}\n\n${answer}\n`;
+  // 回答が一つもなければ最初の質問部分も不要なのでnullを返す
+  if (answers.length === 0) {
+    // Note: 質問のみの状態で保存したい場合はここのロジックを変更
+    return null;
   }
-  return md;
+
+  const answersMd = answers.map(({model, answer}) => `## ${model}\n\n${answer}\n`).join('\n');
+
+  return md + answersMd;
 }
 
 //////////////////// 5. 汎用ユーティリティ ////////////////////
